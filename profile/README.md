@@ -1,4 +1,4 @@
-# Gifting Technologies GmbH
+# A note from the Joy_ team
 
 Joy_ was born from a simple truth: giving should feel good — for both the giver and the receiver. Too often, gifts turn into guesswork. Wrong size, wrong color, something they didn’t really need. We wanted to change that.
 
