@@ -1,6 +1,3 @@
-# Destination: Joy-gifting/.github/.github/workflows/claude.yml
-# Org reusable workflow called by each repo's stub (.scratch/claude-stub.yml).
-# Recipes adapted from anthropics/claude-code-action docs/solutions.md.
 name: Claude Agent
 on:
   workflow_call:
@@ -22,44 +19,45 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      {
-        contents: write,
-        pull-requests: write,
-        issues: write,
-        id-token: write,
-        actions: read,
-      }
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
     steps:
       - uses: actions/checkout@v6
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY || '' }}
           claude_args: |
             --model claude-opus-4-8
             --allowedTools "${{ inputs.allowed_tools }},Bash(gh pr comment:*),Bash(gh pr diff:*),mcp__github_inline_comment__create_inline_comment"
 
   # Implement issues labeled ready-for-agent — agent mode. Coding → Opus.
   pickup:
-    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'ready-for-agent'
+    if: >
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'ready-for-agent'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      {
-        contents: write,
-        pull-requests: write,
-        issues: write,
-        id-token: write,
-        actions: read,
-      }
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
     steps:
       - uses: actions/checkout@v6
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY || '' }}
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ github.event.issue.number }}
@@ -72,17 +70,22 @@ jobs:
 
   # Auto-triage new issues — agent mode. Non-coding → Sonnet.
   triage:
-    if: github.event_name == 'issues' && github.event.action == 'opened' && github.actor != 'claude[bot]' && github.actor != 'github-actions[bot]'
+    if: >
+      github.event_name == 'issues' &&
+      github.event.action == 'opened' &&
+      github.actor != 'claude[bot]' &&
+      github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions: { issues: write, id-token: write }
+    permissions: { contents: read, issues: write, id-token: write }
     steps:
       - uses: actions/checkout@v6
-        with: { fetch-depth: 1 }
+        with:
+          fetch-depth: 1
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY || '' }}
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ github.event.issue.number }}
@@ -97,17 +100,21 @@ jobs:
 
   # Auto-review PRs on open — agent mode, inline comments. Non-coding → Sonnet.
   review:
-    if: github.event_name == 'pull_request' && github.actor != 'claude[bot]' && github.actor != 'github-actions[bot]'
+    if: >
+      github.event_name == 'pull_request' &&
+      github.actor != 'claude[bot]' &&
+      github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions: { contents: read, pull-requests: write, id-token: write }
     steps:
       - uses: actions/checkout@v6
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 1
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY || '' }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
