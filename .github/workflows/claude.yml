@@ -1,0 +1,119 @@
+# Destination: Joy-gifting/.github/.github/workflows/claude.yml
+# Org reusable workflow called by each repo's stub (.scratch/claude-stub.yml).
+# Recipes adapted from anthropics/claude-code-action docs/solutions.md.
+name: Claude Agent
+on:
+  workflow_call:
+    inputs:
+      allowed_tools:
+        type: string
+        required: false
+        # Build/test tools the agent may run. Node default; Python repos (joy-backend) override in their stub.
+        default: "Read,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx prisma generate),Bash(pnpm:*),Bash(uv:*)"
+
+jobs:
+  # @claude mentions on issues, PR comments, reviews — tag mode (no prompt). Coding-capable → Opus.
+  respond:
+    if: >
+      github.event_name != 'pull_request' &&
+      github.event.action != 'opened' &&
+      github.event.action != 'labeled' &&
+      github.actor != 'claude[bot]' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      {
+        contents: write,
+        pull-requests: write,
+        issues: write,
+        id-token: write,
+        actions: read,
+      }
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          claude_args: |
+            --model claude-opus-4-8
+            --allowedTools "${{ inputs.allowed_tools }},Bash(gh pr comment:*),Bash(gh pr diff:*),mcp__github_inline_comment__create_inline_comment"
+
+  # Implement issues labeled ready-for-agent — agent mode. Coding → Opus.
+  pickup:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'ready-for-agent'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      {
+        contents: write,
+        pull-requests: write,
+        issues: write,
+        id-token: write,
+        actions: read,
+      }
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            TITLE: ${{ github.event.issue.title }}
+            Implement this issue. Read the body + linked context, follow CLAUDE.md exactly,
+            create a branch, implement, run lint + tests, then open a PR that closes the issue.
+          claude_args: |
+            --model claude-opus-4-8
+            --allowedTools "${{ inputs.allowed_tools }},Bash(gh pr create:*),Bash(gh issue view:*)"
+
+  # Auto-triage new issues — agent mode. Non-coding → Sonnet.
+  triage:
+    if: github.event_name == 'issues' && github.event.action == 'opened' && github.actor != 'claude[bot]' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { issues: write, id-token: write }
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 1 }
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            TITLE: ${{ github.event.issue.title }}
+            BODY: ${{ github.event.issue.body }}
+            Triage this new issue: classify type + priority, apply existing labels only,
+            flag likely duplicates, add needs-info if the report is incomplete.
+            Triage vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --allowedTools "Read,Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh search:*)"
+
+  # Auto-review PRs on open — agent mode, inline comments. Non-coding → Sonnet.
+  review:
+    if: github.event_name == 'pull_request' && github.actor != 'claude[bot]' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions: { contents: read, pull-requests: write, id-token: write }
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ vars.CLAUDE_AUTH_MODE == 'api' && secrets.ANTHROPIC_API_KEY       || '' }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            Review this PR for correctness, bugs, security, performance, and adherence to CLAUDE.md.
+            Post specific problems as inline comments (confirmed: true). Only flag real issues.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
