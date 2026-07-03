@@ -75,6 +75,7 @@ jobs:
             TITLE: ${{ github.event.issue.title }}
             Implement this issue. Read the body + linked context, follow CLAUDE.md exactly,
             create a branch, implement, run lint + tests, then open a PR that closes the issue.
+            The PR title must start with the same [XXX-000] prefix as the issue title.
           claude_args: |
             --model claude-opus-4-8
             --allowedTools "${{ inputs.allowed_tools }},Bash(gh pr create:*),Bash(gh issue view:*)"
