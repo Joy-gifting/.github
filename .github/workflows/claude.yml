@@ -58,6 +58,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Parse ticket metadata
+        id: meta
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          echo "ticket_id=$(grep -oP '^notion-ticket:\s*\K\S+' <<< "$BODY")" >> "$GITHUB_OUTPUT"
+          echo "callback=$(grep -oP '^callback:\s*\K\S+' <<< "$BODY")" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ vars.CLAUDE_AUTH_MODE != 'api' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
@@ -71,6 +78,17 @@ jobs:
           claude_args: |
             --model claude-opus-4-8
             --allowedTools "${{ inputs.allowed_tools }},Bash(gh pr create:*),Bash(gh issue view:*)"
+      - name: Report PR to n8n
+        if: always() && steps.meta.outputs.callback != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_URL=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --search "closes #${{ github.event.issue.number }} in:body" \
+            --state open --json url --jq '.[0].url // empty')
+          curl -sf -X POST "${{ steps.meta.outputs.callback }}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"ticketId\":\"${{ steps.meta.outputs.ticket_id }}\",\"prUrl\":\"$PR_URL\"}"
 
   # Auto-triage new issues — agent mode. Non-coding → Sonnet.
   triage:
